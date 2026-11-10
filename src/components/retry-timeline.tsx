@@ -57,7 +57,8 @@ export function RetryTimeline({ delivery, attempts, now }: { delivery: Delivery;
         )}
       </div>
       <div className="relative mx-2 h-5 text-[0.7rem] text-muted-foreground" aria-hidden>
-        {TICKS.filter(([s]) => s < windowS * 0.9).map(([s, label]) => (
+        {/* on a log axis late ticks bunch up at the end; keep clear of the "Gives up" label */}
+        {TICKS.filter(([s]) => x(start + s * 1000) <= 90).map(([s, label]) => (
           <span key={s} className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0" style={{ left: `${x(start + s * 1000)}%` }}>
             {label}
           </span>
