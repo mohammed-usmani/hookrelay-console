@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HookRelay Console
 
-## Getting Started
+Web console for [HookRelay](https://github.com/mohammed-usmani/hookrelay), a multi-tenant webhook delivery service. Use it to manage endpoints and event types, send events, and find out why a delivery failed.
 
-First, run the development server:
+## What it does
+
+- **Overview**: delivery health over the last 24 hours, endpoints that need attention, and recent failures. A new application gets a setup checklist instead.
+- **Endpoints**:
+  - Add, edit, pause, resume and delete endpoints.
+  - Send a test event.
+  - Replay failed deliveries since a chosen time.
+  - Reveal or rotate the signing secret.
+  - 24-hour stats: success rate, p50 and p95 latency, deliveries by status.
+- **Deliveries**:
+  - Filter by status, endpoint and time.
+  - Each delivery shows every attempt on a retry timeline. The timeline's axis is logarithmic, so retries seconds apart and hours apart both stay readable.
+  - Each attempt shows the receiver's response body and the error.
+  - Send a failed delivery again.
+- **Events**: browse and filter events, view a payload and where it was delivered, and send an event by hand with an optional idempotency key.
+- **Event types**: create types with an optional JSON Schema, edit them, and archive or restore them. HookRelay's own notification types are listed separately.
+- **Admin area**: create applications, rename or disable them, and create or revoke API keys. A new key is shown once.
+
+## How it works
+
+The browser never talks to the HookRelay API directly. Next.js server components and server actions call the API (a backend-for-frontend), so:
+
+- The API key or admin token lives in an **encrypted, httpOnly cookie** (JWE, A256GCM). Browser JavaScript can't read it, and the backend needs no CORS rules.
+- Every mutation is a server action. When the key is revoked or expires, the next request sends you back to sign in.
+- API errors come back as RFC 9457 problem details and are shown next to the form that caused them, field errors included.
+
+Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui on Base UI, Lucide icons, `jose`.
+
+## Running it
+
+Start the HookRelay stack first (see its README). The API listens on `localhost:8080`, and Grafana from that stack uses port 3000, so the console runs on port **3100**.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
+# set SESSION_SECRET: openssl rand -base64 32
+npm install
+npm run dev        # http://localhost:3100
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To sign in:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Open `/admin` and sign in with `HOOKRELAY_ADMIN_TOKEN` (`demo-admin-token-change-me` in the demo `.env`).
+2. Create an application and an API key for it.
+3. Sign in at `/sign-in` with that key.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Purpose |
+| --- | --- |
+| `HOOKRELAY_API_URL` | Base URL of the HookRelay API, read on the server only. Default `http://localhost:8080`. |
+| `SESSION_SECRET` | At least 32 characters. Encrypts the session cookie. |
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Checks: `npm run lint`, `npm run typecheck`, `npm run build`.

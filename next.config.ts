@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // every page depends on the signed-in session, so nothing is prerendered
   turbopack: {
     rules: {
       "*.css": {
