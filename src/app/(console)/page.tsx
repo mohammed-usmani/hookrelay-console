@@ -8,21 +8,23 @@ import { buttonVariants } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { allEndpoints, allEventTypes } from "@/lib/data";
 import { rangeStart } from "@/lib/ranges";
-import type { Delivery, Page } from "@/lib/types";
+import type { Delivery, DeliveryStatus, EndpointStats, Page } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Overview" };
 
-const count = (p: Page<unknown>) => (p.nextCursor ? `${p.data.length}+` : String(p.data.length));
+const fmt = new Intl.NumberFormat("en");
 
 export default async function Overview() {
   const dayAgo = rangeStart("24h");
-  const [endpoints, types, retrying, failed, delivered] = await Promise.all([
+  const [endpoints, types, failed] = await Promise.all([
     allEndpoints(),
     allEventTypes(),
-    api<Page<Delivery>>("/v1/deliveries", { query: { status: "FAILED_RETRYING", limit: 100 } }),
-    api<Page<Delivery>>("/v1/deliveries", { query: { status: "DEAD", from: dayAgo, limit: 100 } }),
-    api<Page<Delivery>>("/v1/deliveries", { query: { status: "SUCCEEDED", from: dayAgo, limit: 100 } }),
+    api<Page<Delivery>>("/v1/deliveries", { query: { status: "DEAD", from: dayAgo, limit: 8 } }),
   ]);
+  // exact 24 h totals: each endpoint's stats already count its deliveries by status
+  const stats = await Promise.all(endpoints.map((e) => api<EndpointStats>(`/v1/endpoints/${e.id}/stats`)));
+  const total = (s: DeliveryStatus) => stats.reduce((n, x) => n + (x.deliveriesByStatus[s] ?? 0), 0);
+  const [delivered, retrying, dead] = [total("SUCCEEDED"), total("FAILED_RETRYING") + total("PENDING"), total("DEAD")];
   const byId = new Map(endpoints.map((e) => [e.id, e]));
   const attention = endpoints.filter((e) => e.status !== "ACTIVE" || e.circuitState !== "CLOSED");
   const customTypes = types.filter((t) => !t.system);
@@ -42,9 +44,9 @@ export default async function Overview() {
 
       <dl className="grid grid-cols-2 divide-border overflow-hidden rounded-lg border bg-card sm:grid-cols-4 sm:divide-x">
         <Stat label="Active endpoints" value={`${endpoints.filter((e) => e.status === "ACTIVE").length} of ${endpoints.length}`} href="/endpoints" />
-        <Stat label="Delivered" value={count(delivered)} href="/deliveries?status=SUCCEEDED" />
-        <Stat label="Retrying now" value={count(retrying)} href="/deliveries?status=FAILED_RETRYING" tone={retrying.data.length ? "warn" : undefined} />
-        <Stat label="Failed" value={count(failed)} href="/deliveries?status=DEAD" tone={failed.data.length ? "bad" : undefined} />
+        <Stat label="Delivered" value={fmt.format(delivered)} href="/deliveries?status=SUCCEEDED" />
+        <Stat label="In progress" value={fmt.format(retrying)} href="/deliveries?status=FAILED_RETRYING" tone={retrying ? "warn" : undefined} />
+        <Stat label="Failed" value={fmt.format(dead)} href="/deliveries?status=DEAD" tone={dead ? "bad" : undefined} />
       </dl>
 
       <Section title="Endpoints needing attention">
@@ -93,7 +95,7 @@ export default async function Overview() {
           </EmptyState>
         ) : (
           <Panel>
-            <DeliveryTable deliveries={failed.data.slice(0, 8)} endpoints={byId} />
+            <DeliveryTable deliveries={failed.data} endpoints={byId} />
           </Panel>
         )}
       </Section>
